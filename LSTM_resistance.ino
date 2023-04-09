@@ -9,7 +9,7 @@ const int TRIGGER_PIN = 3;         // Pin used to trigger new resistance measure
 const int VOLTAGE_DIVIDER = 10;    // Voltage divider used to measure supply voltage
 const float INTERNAL_REF_VOLTAGE = 1.1;  // Internal reference voltage of Arduino
 
-int pulseCount = 0;                // Pulse count for current resistance measurement
+uint32_t pulseCount = 0;                // Pulse count for current resistance measurement
 float supplyVoltage = 0;           // Supply voltage for current resistance measurement
 float resistance = 0;              // Resistance of unknown resistor
 float predictedError = 0;          // Predicted error of LSTM
@@ -28,14 +28,13 @@ void loop() {
     // Trigger new resistance measurement
     lstm.reset();  // Reset LSTM state
     pulseCount = 0;
-    supplyVoltage = measureSupplyVoltage();
-    float analogInput = measureAnalogInput();
-    for (int i = 0; i < AVERAGE_READINGS; i++) {
-      pulseCount += chargeCapacitor(CHARGE_PIN, THRESHOLD, CAPACITANCE);
     }
-    pulseCount /= AVERAGE_READINGS;
+    supplyVoltage = measureSupplyVoltage();
+    pulseCount = chargeCapacitor(CHARGE_PIN, THRESHOLD, CAPACITANCE);
+    float analogInput = measureAnalogInput();
+    digitalWrite(chargePin, LOW); // Begin next charging pulse
     resistance = calculateResistance(CAPACITANCE, pulseCount);
-    float inputs[] = {analogInput, analogInput / AVERAGE_READINGS, (float)pulseCount, supplyVoltage, 0};
+    float inputs[] = {analogInput, (float)pulseCount, supplyVoltage};
     // Use zero for software trigger input to avoid interference from previous measurement
     float target[] = {resistance};
     lstm.train(inputs, target);
@@ -47,7 +46,6 @@ void loop() {
     Serial.print(predictedError);
     Serial.print(", Measured error: ");
     Serial.println(measuredError);
-  }
 }
 
 float measureAnalogInput() {
@@ -65,7 +63,7 @@ float measureSupplyVoltage() {
 }
 
 
-int chargeCapacitor(int chargePin, int threshold, int capacitance) {
+uint32_t chargeCapacitor(int chargePin, int threshold, int capacitance) {
   pinMode(chargePin, OUTPUT); // Set charge pin as output
   digitalWrite(chargePin, LOW); // Begin charging pulse
   int pulseCount = 0;
@@ -73,10 +71,11 @@ int chargeCapacitor(int chargePin, int threshold, int capacitance) {
   while(analogRead(chargePin) < threshold) {
     digitalWrite(chargePin, HIGH); // End charging pulse
     delayMicroseconds(10); // Wait for a short time
-    digitalWrite(chargePin, LOW); // Begin next charging pulse
+    //digitalWrite(chargePin, LOW); // to disable pullup 
+    pinMode(chargePin, INPUT); // End charging pulse by setting charge pin as input
     pulseCount++;
   }
-  pinMode(chargePin, INPUT); // End charging pulse by setting charge pin as input
+//digitalWrite(chargePin, LOW); // Begin next charging pulse
   unsigned long endTime = millis(); // Record end time
   float chargeTime = (endTime - startTime) * 1000.0 / pulseCount; // Calculate time per pulse
   //float resistance = chargeTime / (capacitance * 1000.0); // Calculate resistance
