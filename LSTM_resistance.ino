@@ -64,19 +64,25 @@ float measureSupplyVoltage() {
   return analogValue * INTERNAL_REF_VOLTAGE * VOLTAGE_DIVIDER / 1023.0;
 }
 
+
 int chargeCapacitor(int chargePin, int threshold, int capacitance) {
-  // Charge capacitor with discrete pulses and return number of pulses required to exceed threshold voltage
+  pinMode(chargePin, OUTPUT); // Set charge pin as output
+  digitalWrite(chargePin, LOW); // Begin charging pulse
   int pulseCount = 0;
-  digitalWrite(chargePin, HIGH);
-  while (analogRead(CHARGE_PIN) < threshold) {
-digitalWrite(chargePin, LOW);
-delayMicroseconds(capacitance * 1000); // Charge time = capacitance * voltage / current = capacitance * 5V / 10kOhm
-digitalWrite(chargePin, HIGH);
-pulseCount++;
+  unsigned long startTime = millis(); // Record start time
+  while(analogRead(chargePin) < threshold) {
+    digitalWrite(chargePin, HIGH); // End charging pulse
+    delayMicroseconds(10); // Wait for a short time
+    digitalWrite(chargePin, LOW); // Begin next charging pulse
+    pulseCount++;
+  }
+  pinMode(chargePin, INPUT); // End charging pulse by setting charge pin as input
+  unsigned long endTime = millis(); // Record end time
+  float chargeTime = (endTime - startTime) * 1000.0 / pulseCount; // Calculate time per pulse
+  //float resistance = chargeTime / (capacitance * 1000.0); // Calculate resistance
+  return pulseCount;
 }
-pinMode(chargePin, INPUT); // End charging pulse by setting charge pin as input
-return pulseCount;
-}
+
 
 float calculateResistance(int capacitance, int pulseCount) {
 // Calculate resistance of unknown resistor from capacitance, pulse count, and supply voltage
